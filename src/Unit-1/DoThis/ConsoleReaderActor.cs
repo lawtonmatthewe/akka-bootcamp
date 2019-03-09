@@ -9,21 +9,20 @@ namespace WinTail
     /// </summary>
     class ConsoleReaderActor : UntypedActor
     {
+        private readonly IActorRef _validationActor;
+        
         public const string StartCommand = "start";
         public const string ExitCommand = "exit";
-        private IActorRef _consoleWriterActor;
 
-        public ConsoleReaderActor(IActorRef consoleWriterActor)
+        public ConsoleReaderActor(IActorRef validationActor)
         {
-            _consoleWriterActor = consoleWriterActor;
+            _validationActor = validationActor;
         }
 
         protected override void OnReceive(object message)
         {
             if (message.Equals(StartCommand))
                 DoPrintInstructions();
-            else if (message is Messages.InputError)
-                _consoleWriterActor.Tell((Messages.InputError) message);
 
             GetAndValidateInput();
         }
@@ -38,28 +37,10 @@ namespace WinTail
         private void GetAndValidateInput()
         {
             var message = Console.ReadLine();
-            if (string.IsNullOrEmpty(message))
-                Self.Tell(new Messages.NullInputError("No input received."));
-            else if (string.Equals(message, ExitCommand, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(message, ExitCommand, StringComparison.OrdinalIgnoreCase))
                 Context.System.Terminate();
             else
-            {
-                var isValid = IsValid(message);
-                if (isValid)
-                {
-                    _consoleWriterActor.Tell(new Messages.InputSuccess("Thank you! Message was valid."));
-                    Self.Tell(new Messages.ContinueProcessing());
-                }
-                else
-                {
-                    Self.Tell(new Messages.ValidationError("Invalid: input had odd number of characters."));
-                }
-            }
-        }
-
-        private static bool IsValid(string message)
-        {
-            return message.Length % 2 == 0;
+                _validationActor.Tell(message);
         }
     }
 }
